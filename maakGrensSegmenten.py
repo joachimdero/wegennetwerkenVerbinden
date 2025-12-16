@@ -1,7 +1,7 @@
 import os.path
 import arcpy
 from datetime import datetime
-import wegennetwerkWallonieToWrvorm
+import z_wegennetwerkWallonieToWrvorm as wegennetwerkWallonieToWrvorm
 
 
 def maak_grensverbinding(wegknopen_wr, wegknopen_wallonie, wegknopen_brussel, gewestgrens_lijn):
@@ -19,7 +19,7 @@ def maak_grensverbinding(wegknopen_wr, wegknopen_wallonie, wegknopen_brussel, ge
             in_layer=knooplayer,
             overlap_type="INTERSECT",
             select_features=gewestgrens_lijn,
-            search_distance="3 Meters",
+            search_distance="6 Meters",
             selection_type="NEW_SELECTION",
             invert_spatial_relationship="NOT_INVERT"
         )
@@ -28,7 +28,7 @@ def maak_grensverbinding(wegknopen_wr, wegknopen_wallonie, wegknopen_brussel, ge
         in_features=knooplayers[0],
         near_features=[knooplayers[1], knooplayers[2]],
         out_table=near_table,
-        search_radius="5 Meters",
+        search_radius="10 Meters",
         location="LOCATION",
         angle="NO_ANGLE",
         closest="ALL",
@@ -78,14 +78,14 @@ def maak_grensverbinding(wegknopen_wr, wegknopen_wallonie, wegknopen_brussel, ge
 
 # -----------------------------------
 # PAS PATH AAN INDIEN JE IN EEN ANDERE OMGEVING WERKT
-arcpy.env.workspace = r"C:\GoogleSharedDrives\Team GIS\Projecten\WRapp\wegennetten verbinden\wegennettenVerbinden.gdb"
+arcpy.env.workspace = r"C:\GoogleSharedDrives\Team GIS\Projecten\WRapp\wegennetten verbinden\Wegennetten verbinden luc.gdb"
 # PAS PATH AAN INDIEN JE IN EEN ANDERE OMGEVING WERKT
 ws_templates = r"C:\GoogleSharedDrives\Team GIS\Projecten\WRapp\wegennetten verbinden\wegennettenVerbindenTemplates.gdb"
 arcpy.env.overwriteOutput = True
 tijd = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-wegknopen_wr = "wegknoopVLA"
-wegknopen_wallonie = "wegknoopWAL"
-wegknopen_bru = "wegknoopBRU"
+wegknopen_wr = "wegknoopVLAwerk"
+wegknopen_wallonie = "wegknoopWALwerk"
+wegknopen_bru = "wegknoopBRUwerk"
 
 
 gewestgrens_lijn = os.path.join(ws_templates, "AdmGrensType_gewestgrens")

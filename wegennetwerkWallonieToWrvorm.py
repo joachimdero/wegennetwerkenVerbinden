@@ -1,19 +1,18 @@
 import arcpy
 import os
-from datetime import datetime
 import GeometryLineCalculateM
 from Wegknoop import Wegknoop
+from log_config import logger
+
 from testcode.test_intersect import intersecttest
-from wr_class import Weg
+from wegsegment_classes import WegWallonie as WegWallonie  # importeren als WegWallonie om compatibiliteit te behouden
 
 
 def merge_dissolve_wegsegmenten(in_wegsegmenten):
-    print(f"*{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}-wegenWallonie1: samenvoegen van inputbestanden (per "
+    logger.info(f"-wegenWallonie1: samenvoegen van inputbestanden (per "
           f"provincie) en verbeteringen aanbrengen aan de topologie (onterechte multiparts, wegen die elkaar net niet "
           f"raken,...)")
-    print(f"merge inputbestanden: {in_wegsegmenten}")
-    # samenvoegen van inputbestanden (per provincie) en verbeteringen aanbrengen aan de topologie (onterechte
-    # multiparts, wegen die elkaar net niet raken,...)
+    logger.info(f"merge inputbestanden: {in_wegsegmenten}")
     wegsegmenten_tmp1: str = "wegsegmentWallonie_tmp1merge"
     arcpy.management.Merge(
         inputs=in_wegsegmenten,
@@ -21,7 +20,7 @@ def merge_dissolve_wegsegmenten(in_wegsegmenten):
     )
 
     # sorteer de data als voorbereiding om segmenten met identieke geometrie tot één feature te brengen
-    print("sorteer de data als voorbereiding om segmenten met identieke geometrie tot één feature te brengen")
+    logger.info("sorteer de data als voorbereiding om segmenten met identieke geometrie tot één feature te brengen")
     wegsegmenten_tmp2 = "wegsegmentWallonie_tmp2sort"
     arcpy.management.Sort(
         in_dataset=wegsegmenten_tmp1,
@@ -36,7 +35,7 @@ def merge_dissolve_wegsegmenten(in_wegsegmenten):
         z_tolerance=0
     )
     # voer een eerste dissolve uit zonder eerst geometrie te wijzigen
-    print("voer een eerste dissolve uit zonder eerst geometrie te wijzigen")
+    logger.info("voer een eerste dissolve uit zonder eerst geometrie te wijzigen")
     wegsegmenten_tmp3 = "wegsegmentWallonie_tmp3dissolve"
     arcpy.management.Dissolve(
         in_features=wegsegmenten_tmp2,
@@ -51,12 +50,11 @@ def merge_dissolve_wegsegmenten(in_wegsegmenten):
     return wegsegmenten_tmp3
 
 
-def load_data(in_wegsegmenten=[]):
-    print(f"*{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}-wegenWallonie1: merge inputbestanden: {in_wegsegmenten}")
-    wegsegmenten_tmp1= "wegsegmentWallonie_tmp1merge"
+def load_data(in_wegsegmenten=[], wegsegmenten_merge="wegsegmentWallonie_tmp1merge"):
+    logger.info(f"MERGE INPUTBESTANDEN: {in_wegsegmenten} => {wegsegmenten_merge}")
     arcpy.CreateFeatureclass_management(
         out_path=arcpy.env.workspace,
-        out_name=wegsegmenten_tmp1,
+        out_name=wegsegmenten_merge,
         geometry_type="POLYLINE",
         template=in_wegsegmenten[0],
         has_m="ENABLED",
@@ -65,13 +63,13 @@ def load_data(in_wegsegmenten=[]):
     )
     arcpy.Append_management(
         inputs=in_wegsegmenten,
-        target=wegsegmenten_tmp1
+        target=wegsegmenten_merge
     )
     # sorteer de data als voorbereiding om segmenten met identieke geometrie tot één feature te brengen
-    print("sorteer de data als voorbereiding om segmenten met identieke geometrie tot één feature te brengen")
+    logger.info("sorteer de data als voorbereiding om segmenten met identieke geometrie tot één feature te brengen")
     wegsegmenten_tmp2 = "wegsegmentWallonie_tmp2sort"
     arcpy.management.Sort(
-        in_dataset=wegsegmenten_tmp1,
+        in_dataset=wegsegmenten_merge,
         out_dataset=wegsegmenten_tmp2,
         sort_field="SENS_BK DESCENDING;COMMU_NOM1 DESCENDING;COMMU_NOM2 DESCENDING;SENS_BK DESCENDING",
         spatial_sort_method="UR"
@@ -83,7 +81,7 @@ def load_data(in_wegsegmenten=[]):
         z_tolerance=0
     )
     # voer een eerste dissolve uit zonder eerst geometrie te wijzigen
-    print("voer een eerste dissolve uit zonder eerst geometrie te wijzigen")
+    logger.info("voer een eerste dissolve uit zonder eerst geometrie te wijzigen")
     wegsegmenten_tmp3 = "wegsegmentWallonie_tmp3dissolve"
     arcpy.management.Dissolve(
         in_features=wegsegmenten_tmp2,
@@ -100,23 +98,23 @@ def load_data(in_wegsegmenten=[]):
 
 
 def generalize_snap_wegsegmenten(in_wegsegmenten):
-    print(
-        f"*{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}-start wegenWallonie2: oplossing segmenten die niet mooi aansluiten (gap of intersectie) en multipart")
+    logger.info(
+        f"-start wegenWallonie2: oplossing segmenten die niet mooi aansluiten (gap of intersectie) en multipart")
     wegsegmenten_tmp4 = "wegsegmentWallonie_tmp4copyGeneralizeSnap"
     arcpy.CopyFeatures_management(
         in_features=in_wegsegmenten,
         out_feature_class=wegsegmenten_tmp4)
 
     # verwijder het teveel aan vertices (sommigen doen rare zaken in versie 2024) - zorgt dat vertices niet meer op elkaar aansluiten
-    # print(f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}-Generalize")
+    # logger.info(f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}-Generalize")
     # arcpy.edit.Generalize(
     #     in_features=wegsegmenten_tmp4,
     #     tolerance="1 Decimeters"
     # )
 
     # maak eindpunten, verwijder dubbele of te kort bij mekaar en snap dan de lijnen er naar toe
-    print(
-        f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}-maak eindpunten, verwijder dubbele of te kort bij mekaar en snap dan de lijnen er naar toe")
+    logger.info(
+        f"-maak eindpunten, verwijder dubbele of te kort bij mekaar en snap dan de lijnen er naar toe")
     featurevertices_tmp1 = "wegsegmentWallonie_tmp4_featureVertices_tmp1"
     arcpy.management.FeatureVerticesToPoints(
         in_features=wegsegmenten_tmp4,
@@ -129,13 +127,13 @@ def generalize_snap_wegsegmenten(in_wegsegmenten):
         xy_tolerance="1 Meters",
         z_tolerance=10000000
     )
-    print(f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}-snap")
+    logger.info(f"-snap")
     arcpy.edit.Snap(
         in_features=wegsegmenten_tmp4,
         snap_environment=f"{featurevertices_tmp1} END '1 Meters'"
     )
     # verminder (onterechte) multiparts en maak singleparts
-    print(f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}-verminder (onterechte) multiparts en maak singleparts")
+    logger.info(f"-verminder (onterechte) multiparts en maak singleparts")
     wegsegmenten_tmp5 = "wegsegmentWallonie_tmp5dissolve"
     arcpy.management.Dissolve(
         in_features=wegsegmenten_tmp4,
@@ -169,7 +167,7 @@ def delete_intersectpoints_verschillend_niveau(intersect_fc):
     for point in points:
         if len(points[point]) > 1:
             points_brug.append(point)
-    arcpy.AddMessage(f"{len(points_brug)} intersection points zijn bruggen en worden verwijderd")
+    logger.info(f"{len(points_brug)} intersection points zijn bruggen en worden verwijderd")
 
     with arcpy.da.UpdateCursor(intersect_fc, ["SHAPE@"]) as uc:
         for row in uc:
@@ -181,14 +179,14 @@ def delete_intersectpoints_verschillend_niveau(intersect_fc):
 
 
 def snap_split_wegsegment_at_endpoint(in_wegsegmenten, out_wegsegmenten="wegsegmentWallonie_tmp7SplitAtPoint"):
-    print(f"*{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}-start snap_split_wegsegment_at_endpoint")
+    logger.info(f"-start snap_split_wegsegment_at_endpoint")
     wegsegmenten_tmp6 = "wegsegmentWallonie_tmp6copySnap"
-    print(f"*{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}CopyFeatures_management")
+    logger.info(f"CopyFeatures_management")
     arcpy.CopyFeatures_management(
         in_features=in_wegsegmenten,
         out_feature_class=wegsegmenten_tmp6)
 
-    print(f"*{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}FeatureVerticesToPoints")
+    logger.info(f"FeatureVerticesToPoints")
     endpoints_tmp1 = "wegsegmentWallonie_tmp6_endpoints_tmp1"
     arcpy.management.FeatureVerticesToPoints(
         in_features=wegsegmenten_tmp6,
@@ -201,7 +199,7 @@ def snap_split_wegsegment_at_endpoint(in_wegsegmenten, out_wegsegmenten="wegsegm
         xy_tolerance="1 Meters",
         z_tolerance=10000000
     )
-    print(f"*{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}SplitLineAtPoint")
+    logger.info(f"SplitLineAtPoint")
     arcpy.management.SplitLineAtPoint(
         in_features=wegsegmenten_tmp6,
         point_features=endpoints_tmp1,
@@ -209,7 +207,7 @@ def snap_split_wegsegment_at_endpoint(in_wegsegmenten, out_wegsegmenten="wegsegm
         search_radius="0.01 Meters"
     )
 
-    print(f"*{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}snap naar eindpunten")
+    logger.info(f"snap naar eindpunten")
     arcpy.edit.Snap(
         in_features=out_wegsegmenten,
         snap_environment=f"{endpoints_tmp1} END '1 Meters'"
@@ -220,24 +218,25 @@ def snap_split_wegsegment_at_endpoint(in_wegsegmenten, out_wegsegmenten="wegsegm
 
 def to_wr(in_wegsegmenten, f_wegsegmenten, template, templates_tables, bron):
     # geef elke lijn wegenregister attributen en kalibratie
-    print(f"*{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}-toWr")
-    wegsegmenten_tmp7 = f"wegsegment{bron}"
+    segmenten_wal_wr = f"wegsegment{bron}"
+    logger.info(f"{in_wegsegmenten} NAAR WEGENREGISTERVORM {segmenten_wal_wr}")
     nationaleweg = f"AttNationweg{bron}"
+    genummerdeweg = f"AttGenumerdeWeg{bron}"
     rijstroken = f"AttRijstroken{bron}"
     wegbreedte = f"AttWegbreedte{bron}"
     wegverharding = f"AttWegverharding{bron}"
 
     arcpy.CreateFeatureclass_management(
         out_path=arcpy.env.workspace,
-        out_name=wegsegmenten_tmp7,
-        geometry_type="Polyline",
+        out_name=segmenten_wal_wr,
+        geometry_type="POLYLINE",
         template=template,
         has_m="ENABLED",
         has_z="ENABLED",
         spatial_reference=arcpy.Describe(in_wegsegmenten).spatialReference
     )
 
-    print(templates_tables)
+    logger.info(templates_tables)
     for table in templates_tables:
         arcpy.CreateTable_management(
             out_path=arcpy.env.workspace,
@@ -253,6 +252,9 @@ def to_wr(in_wegsegmenten, f_wegsegmenten, template, templates_tables, bron):
     f_ic_nationaleweg = [
         'NW_OIDN', 'WS_OIDN', 'IDENT2', 'BEGINTIJD', 'BEGINORG', 'LBLBGNORG'
     ]
+    f_ic_genummerdeweg = [
+        'GW_OIDN', 'WS_OIDN', 'IDENT8', 'RICHTING', "LBLRICHTING", "VOLGORDE",'BEGINTIJD', 'BEGINORG', 'LBLBGNORG'
+    ]
     f_ic_rijstroken = [
         'RS_OIDN', 'WS_OIDN', 'WS_GIDN', 'AANTAL', 'RICHTING', 'LBLRICHT',
         'VANPOS', 'TOTPOS', 'BEGINTIJD', 'BEGINORG', 'LBLBGNORG'
@@ -267,19 +269,20 @@ def to_wr(in_wegsegmenten, f_wegsegmenten, template, templates_tables, bron):
     ]
 
     with arcpy.da.Editor(arcpy.env.workspace) as edit:
-        ic_wegsegment = arcpy.da.InsertCursor(wegsegmenten_tmp7, f_ic_wegsegment)
+        ic_wegsegment = arcpy.da.InsertCursor(segmenten_wal_wr, f_ic_wegsegment)
         ic_nationaleweg = arcpy.da.InsertCursor(nationaleweg, f_ic_nationaleweg)
+        ic_genummerdeweg = arcpy.da.InsertCursor(nationaleweg, f_ic_genummerdeweg)
         ic_rijstroken = arcpy.da.InsertCursor(rijstroken, f_ic_rijstroken)
         ic_wegbreedte = arcpy.da.InsertCursor(wegbreedte, f_ic_wegbreedte)
         ic_wegverharding = arcpy.da.InsertCursor(wegverharding, f_ic_wegverharding)
 
-        print(f"aantal features in {in_wegsegmenten}: {arcpy.GetCount_management(in_wegsegmenten).getOutput(0)}")
+        logger.info(f"aantal features in {in_wegsegmenten}: {arcpy.GetCount_management(in_wegsegmenten).getOutput(0)}")
         with arcpy.da.SearchCursor(in_wegsegmenten, f_wegsegmenten) as sc:
             fouten = []
             for i, row in enumerate(sc):
                 fout = []
-                if i in range(0, 100000000, 10000):
-                    print(f"{i} wegsegmenten omgezet, {len(fouten)} konden niet verwerkt worden")
+                if i % 10000 == 0 or i < 5:
+                    logger.info(f"{i} wegsegmenten omgezet, {len(fouten)} konden niet verwerkt worden")
                 if row[0] is None:
                     fout.append(f"ongeldige geometrie (None): {row}")
                     fouten.append(fout)
@@ -292,29 +295,47 @@ def to_wr(in_wegsegmenten, f_wegsegmenten, template, templates_tables, bron):
                 else:
                     geometry_wr = GeometryLineCalculateM.PolylineWithMValues(row[0]).out_geometry
                     row_tmp = [geometry_wr] + list(row[1:])
-                    weg = Weg(*row_tmp, bron=bron)
+                    weg = WegWallonie(
+                        geometrie=row[0],
+                        nature_desc=row[1],
+                        icarrueid1=row[2],
+                        rue_nom1=row[3],
+                        commu_nom1=row[4],
+                        commu_ins1=row[5],
+                        icarrueid2=row[6],
+                        rue_nom2=row[7],
+                        commu_nom2=row[8],
+                        commu_ins2=row[9],
+                        gestion=row[10],
+                        voirie_nom=row[11],
+                        sens_bk=row[12],
+                        amenag=row[13],
+                        bron=bron
+                    )
                     row_new = weg.export_wegsegment_as_list()
                     ic_wegsegment.insertRow(row_new)
                     row_nationweg = weg.export_nationweg_as_list()
+                    row_genumweg = weg.export_genummerdeweg_as_list()
                     row_rijstroken = weg.export_rijstroken_as_list()
                     row_wegbreedte = weg.export_wegbreedte_as_list()
                     row_wegverharding = weg.export_wegverharding_as_list()
                     if row_nationweg[2] is not None:
                         ic_nationaleweg.insertRow(row_nationweg)
+                        ic_genummerdeweg.insertRow(row_genumweg)
                     ic_rijstroken.insertRow(row_rijstroken)
                     ic_wegbreedte.insertRow(row_wegbreedte)
                     ic_wegverharding.insertRow(row_wegverharding)
-            print(f"{i} wegsegmenten omgezet, {len(fouten)} konden niet verwerkt worden")
+            logger.info(f"{i} wegsegmenten omgezet, {len(fouten)} konden niet verwerkt worden")
 
     if len(fouten) > 0:
-        print(f"er konden {len(fouten)} niet verwerkt worden: eerste 10: {fouten[:10]}")
+        logger.info(f"er konden {len(fouten)} niet verwerkt worden: eerste 10: {fouten[:10]}")
 
-    arcpy.AddMessage(f"wegsegment_tmp7: {wegsegmenten_tmp7}")
-    return wegsegmenten_tmp7
+    logger.info(f"wegsegment_tmp7: {segmenten_wal_wr}, {arcpy.Describe(segmenten_wal_wr).dataType}")
+    return segmenten_wal_wr
 
 
-def maak_knopen(in_wegsegmenten, template,bron):
-    print(f"*{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}-maak_knopen")
+def maak_knopen(in_wegsegmenten, template, bron):
+    logger.info(f"MAAK KNOPEN")
     wegknopen_tmp1 = f"wegknoop{bron}_tmp1"
     arcpy.management.FeatureVerticesToPoints(
         in_features=in_wegsegmenten,
@@ -331,7 +352,6 @@ def maak_knopen(in_wegsegmenten, template,bron):
                 knopen[row[0]].append(row[1])
 
     wegknopen_tmp2 = f"wegknoop{bron}"
-    template = template
     arcpy.CreateFeatureclass_management(
         out_path=arcpy.env.workspace,
         out_name=wegknopen_tmp2,
@@ -349,9 +369,8 @@ def maak_knopen(in_wegsegmenten, template,bron):
 
 
 def set_begin_eind_knoop(in_wegsegmenten, in_wegknopen):
-    print(f"*{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}-set_begin_eind_knoop")
+    logger.info(f"-set_begin_eind_knoop")
     # Maak verwijzing naar begin- en eindknoop
-    # knopen naar dict
     knoop = {}
     with arcpy.da.SearchCursor(in_wegknopen, ['SHAPE@', 'WK_OIDN']) as sc:
         for k in sc:
@@ -379,8 +398,5 @@ def set_begin_eind_knoop(in_wegsegmenten, in_wegknopen):
 
                 fouten_set_begin_eind_knoop.append(f"Error processing row {row}: {e}, table:{in_wegsegmenten}")
     if len(fouten_set_begin_eind_knoop) > 0:
-        print(
+        logger.info(
             f"er konden {len(fouten_set_begin_eind_knoop)} niet verwerkt worden: eerste 10: {fouten_set_begin_eind_knoop[:10]}")
-
-
-# controle

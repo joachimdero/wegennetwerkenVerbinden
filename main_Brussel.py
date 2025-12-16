@@ -69,7 +69,7 @@ if __name__ == '__main__':
             sys.exit()
     for table in templates_tables:
         if not arcpy.Exists(fc):
-            arcpy.AddError(f"{table} bestaat niet (template tables")
+            arcpy.AddError(f"{table} bestaat niet (template tables)")
             sys.exit()
 
 wegsegmenten = to_wr(in_wegsegmenten=in_wegsegmenten[0],

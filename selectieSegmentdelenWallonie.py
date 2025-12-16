@@ -1,14 +1,13 @@
 import arcpy
-from datetime import datetime
+from log_config import logger
 
-print(datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
 
 arcpy.env.overwriteOutput = True
 
 
 def maak_grens_buffer(wegsegmenten_wr, grenslijn):
     # selecteer grenslijn die gebruikt mag worden
-    arcpy.AddMessage(f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')} -maak_grens_buffer:{wegsegmenten_wr, grenslijn}")
+    logger.info(f"-maak_grens_buffer:{wegsegmenten_wr, grenslijn}")
     grenslijn_vlawal = "grenslijn_vlawal"
     arcpy.MakeFeatureLayer_management(
         in_features=grenslijn,
@@ -31,13 +30,13 @@ def maak_grens_buffer(wegsegmenten_wr, grenslijn):
         dissolve_field=None,
         method="PLANAR"
     )
-    arcpy.AddMessage(f"resultaat:{grenslijn_vlawal_buffer}")
+    logger.info(f"resultaat:{grenslijn_vlawal_buffer}")
     return grenslijn_vlawal_buffer
 
 
 def maak_wegsegment_buffer_en_wbn(wegsegmenten_wr, grenslijn_vlawal_buffer, wbn):
-    arcpy.AddMessage(
-        f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')} -maak_wegsegment_buffer_en_wbn:{wegsegmenten_wr, grenslijn_vlawal_buffer, wbn}")
+    logger.info(
+        f"-maak_wegsegment_buffer_en_wbn:{wegsegmenten_wr, grenslijn_vlawal_buffer, wbn}")
     wegsegmenten_wr_lyr = "wegsegmenten_wr_lyr"
     arcpy.MakeFeatureLayer_management(
         in_features=wegsegmenten_wr,
@@ -79,19 +78,19 @@ def maak_wegsegment_buffer_en_wbn(wegsegmenten_wr, grenslijn_vlawal_buffer, wbn)
         out_feature_class=wbn_dissolve
     )
 
-    arcpy.AddMessage(f"resultaat:{wegsegment_wr_buffer, wbn_selectie}")
+    logger.info(f"resultaat:{wegsegment_wr_buffer, wbn_selectie}")
     return wegsegment_wr_buffer, wbn_selectie
 
 
 def maak_selectie_aan_grens(wegsegmenten, grenslijn_vlawal_buffer, wegsegment_wr_buffer,
                             wallonie_manueleSelectie_nietgebruiken, wbn_selectie):
-    arcpy.AddMessage(
-        f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')} -maak_selectie_aan_grens:{wegsegmenten, grenslijn_vlawal_buffer, wegsegment_wr_buffer, wallonie_manueleSelectie_nietgebruiken}")
+    logger.info(
+        f"-MAAK SELECTIE AAN GRENS:{wegsegmenten, grenslijn_vlawal_buffer, wegsegment_wr_buffer, wallonie_manueleSelectie_nietgebruiken}")
     f_selectie = "selectie"
-    arcpy.AddMessage(
+    logger.info(
         f"velden in: {arcpy.Describe(wegsegmenten).catalogPath}, {({f.name for f in arcpy.ListFields(wegsegmenten)})}")
     if f_selectie not in {f.name for f in arcpy.ListFields(wegsegmenten)}:
-        arcpy.AddMessage("addfield")
+        logger.info(f"addfield {f_selectie}")
         arcpy.AddField_management(
             in_table=wegsegmenten,
             field_name=f_selectie,
@@ -104,12 +103,12 @@ def maak_selectie_aan_grens(wegsegmenten, grenslijn_vlawal_buffer, wegsegment_wr
         expression='"test"',
         expression_type="PYTHON3"
     )
-    wegsegmenten_lyr = wegsegmenten
+    wegsegmenten_lyr = "wegsegmenten_lyr"
     arcpy.MakeFeatureLayer_management(
         in_features=wegsegmenten,
         out_layer=wegsegmenten_lyr
     )
-    arcpy.AddMessage(f"{wegsegmenten_lyr}: {arcpy.GetCount_management(wegsegmenten_lyr)[0]} features")
+    logger.info(f"{wegsegmenten_lyr}: {arcpy.GetCount_management(wegsegmenten_lyr)[0]} features")
     arcpy.management.SelectLayerByLocation(
         in_layer=wegsegmenten_lyr,
         overlap_type="COMPLETELY_WITHIN",
@@ -118,17 +117,17 @@ def maak_selectie_aan_grens(wegsegmenten, grenslijn_vlawal_buffer, wegsegment_wr
         selection_type="NEW_SELECTION",
         invert_spatial_relationship="NOT_INVERT"
     )
-    arcpy.AddMessage(f"{wegsegmenten_lyr}: {arcpy.GetCount_management(wegsegmenten_lyr)[0]} features geselecteerd")
+    logger.info(f"{wegsegmenten_lyr}: {arcpy.GetCount_management(wegsegmenten_lyr)[0]} features geselecteerd van layer {wegsegmenten_lyr} in {grenslijn_vlawal_buffer}")
     wegsegmenten_eerste_selectie_lyr = "wegsegmenten_eerste_selectie_lyr"
     arcpy.MakeFeatureLayer_management(
         in_features=wegsegmenten_lyr,
         out_layer=wegsegmenten_eerste_selectie_lyr
     )
-    arcpy.AddMessage(
+    logger.info(
         f"{wegsegmenten_eerste_selectie_lyr}: {arcpy.GetCount_management(wegsegmenten_eerste_selectie_lyr)[0]} features")
 
     # eerste volledige selectie
-    arcpy.AddMessage(f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')} eerste volledige selectie")
+    logger.info(f"eerste volledige selectie")
     arcpy.management.SelectLayerByLocation(
         in_layer=wegsegmenten_eerste_selectie_lyr,
         overlap_type="COMPLETELY_WITHIN",
@@ -137,7 +136,7 @@ def maak_selectie_aan_grens(wegsegmenten, grenslijn_vlawal_buffer, wegsegment_wr
         selection_type="NEW_SELECTION",
         invert_spatial_relationship="NOT_INVERT"
     )
-    arcpy.AddMessage(
+    logger.info(
         f"{wegsegmenten_eerste_selectie_lyr}: {arcpy.GetCount_management(wegsegmenten_eerste_selectie_lyr)[0]} features geselecteerd")
     arcpy.CalculateField_management(
         in_table=wegsegmenten_eerste_selectie_lyr,
@@ -146,7 +145,7 @@ def maak_selectie_aan_grens(wegsegmenten, grenslijn_vlawal_buffer, wegsegment_wr
         expression_type="PYTHON3"
     )
     # tweede selectie
-    arcpy.AddMessage(f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')} tweede volledige selectie")
+    logger.info(f"tweede volledige selectie")
     arcpy.management.SelectLayerByLocation(
         in_layer=wegsegmenten_eerste_selectie_lyr,
         overlap_type="COMPLETELY_WITHIN",
@@ -155,7 +154,7 @@ def maak_selectie_aan_grens(wegsegmenten, grenslijn_vlawal_buffer, wegsegment_wr
         selection_type="NEW_SELECTION",
         invert_spatial_relationship="NOT_INVERT"
     )
-    arcpy.AddMessage(
+    logger.info(
         f"{wegsegmenten_eerste_selectie_lyr}: {arcpy.GetCount_management(wegsegmenten_eerste_selectie_lyr)[0]} features geselecteerd")
     arcpy.CalculateField_management(
         in_table=wegsegmenten_eerste_selectie_lyr,
@@ -164,7 +163,7 @@ def maak_selectie_aan_grens(wegsegmenten, grenslijn_vlawal_buffer, wegsegment_wr
         expression_type="PYTHON3"
     )
     # derde selectie: gekende manueel geselecteerde segmenten
-    arcpy.AddMessage(f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')} derde volledige selectie")
+    logger.info(f"derde volledige selectie")
     arcpy.management.SelectLayerByLocation(
         in_layer=wegsegmenten_eerste_selectie_lyr,
         overlap_type="SHARE_A_LINE_SEGMENT_WITH",
@@ -173,7 +172,7 @@ def maak_selectie_aan_grens(wegsegmenten, grenslijn_vlawal_buffer, wegsegment_wr
         selection_type="NEW_SELECTION",
         invert_spatial_relationship="NOT_INVERT"
     )
-    arcpy.AddMessage(
+    logger.info(
         f"{wegsegmenten_eerste_selectie_lyr}: {arcpy.GetCount_management(wegsegmenten_eerste_selectie_lyr)[0]} features geselecteerd")
     arcpy.CalculateField_management(
         in_table=wegsegmenten_eerste_selectie_lyr,
@@ -182,18 +181,18 @@ def maak_selectie_aan_grens(wegsegmenten, grenslijn_vlawal_buffer, wegsegment_wr
         expression_type="PYTHON3"
     )
 
-    arcpy.AddMessage(f"resultaat:{wegsegmenten}")
+    logger.info(f"resultaat:{wegsegmenten}")
 
 
 def selectie_segmenten_wallonie(ws, wegsegmenten, wegsegmenten_wr, grenslijn, wallonie_manueleSelectie_nietgebruiken,
                                 wbn, wegknopenWAL):
+    logger.info(f"SELECTIE SEGMENTEN WALLONIE")
+    logger.info(f"{arcpy.GetCount_management(wallonie_manueleSelectie_nietgebruiken)[0]} features in {wallonie_manueleSelectie_nietgebruiken}")
     arcpy.env.workspace = ws
     grenslijn_vlawal_buffer = maak_grens_buffer(wegsegmenten_wr, grenslijn)
     wegsegment_wr_buffer, wbn_selectie = maak_wegsegment_buffer_en_wbn(wegsegmenten_wr, grenslijn_vlawal_buffer, wbn)
     maak_selectie_aan_grens(wegsegmenten, grenslijn_vlawal_buffer, wegsegment_wr_buffer,
                             wallonie_manueleSelectie_nietgebruiken, wbn_selectie)
-
-
 def verwijder_knopen(wegsegmenten, wegknopenWAL):
     f_selectie = "selectie"
     arcpy.AddField_management(
