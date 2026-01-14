@@ -193,9 +193,9 @@ class Weg:
         self.lblwegcat = wegcat.get(self.wegcat, 'onbekend')
 
     def set_straatnaam(self):
-        if self.icarrueid1 != 0:
+        if self.icarrueid1 is not None and self.icarrueid1 != 0:
             # icarrueid1 is uniek in combi met rue_nom1
-            self.lstrnmid = self.icarrueid1
+            self.lstrnmid = self.icarrueid1 + self.strnmid
             self.lstrnm = self.rue_nom1
         else:
             self.lstrnmid = -9

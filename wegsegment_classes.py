@@ -58,6 +58,9 @@ class BaseWeg:
     lbltype_wegverharding: Optional[str] = field(init=False, default=None)
     ident2: Optional[str] = field(init=False, default=None)
     nwoidn: Optional[int] = field(init=False, default=None)
+    ident8: Optional[str] = field(init=False, default=None)
+    gwoidn: Optional[int] = field(init=False, default=None)
+    volgnummer: Optional[int] = field(init=False, default=None)
 
     # Vaste attributen
     methode: int = field(init=False, default=DEFAULT_METHODE)
@@ -154,13 +157,14 @@ class BaseWeg:
 
     def export_nationweg_as_list(self):
         return [getattr(self, "nwoidn", None), self.ws_oidn,
-                getattr(self, "ident2", None), self.begintijd,
+                self.ident2, self.begintijd,
                 getattr(self, "beginorg", None), getattr(self, "lblbgnorg", None)]
+
     def export_genummerdeweg_as_list(self):
         return [getattr(self, "gwoidn", None), self.ws_oidn,
-                getattr(self, "ident8", None), self.begintijd,
-                getattr(self, "richting", None), self.richting_ident8,
-                getattr(self, "ident8", None), self.lblricht_ident8,
+                getattr(self, "ident8", None), getattr(self, "richting_ident8", NOT_KNOWN),
+                getattr(self, "lblricht_ident8", NOT_KNOWN_LABEL),
+                getattr(self, "volgnummer", NOT_KNOWN), self.begintijd,
                 getattr(self, "beginorg", None), getattr(self, "lblbgnorg", None)]
 
     def export_rijstroken_as_list(self):
@@ -213,6 +217,7 @@ class WegWallonie(BaseWeg):
         self.set_wegcat()
         self._set_legende()
         self.set_ident2()
+        self.set_ident8()
 
         # Events
         self._add_events(sens_bk=self.sens_bk)
@@ -295,7 +300,6 @@ class WegWallonie(BaseWeg):
             self.rstrnmid = NOT_KNOWN_ID
             self.rstrnm = NOT_KNOWN_LABEL
 
-
     def set_beheer(self, d_beheer=None):
         """
         Stel beheer en labelbeheer in op basis van de bron.
@@ -323,13 +327,13 @@ class WegWallonie(BaseWeg):
             self.lblbeheer = getattr(self, "voirie_nom", NOT_KNOWN_LABEL)
 
     def set_ident2(self):
-        pattern = r"^[A-Z]\\d{1,3}[a-z]{0,1}$"
-        if self.nature_desc and re.match(pattern, self.nature_desc):
-            self.ident2 = self.nature_desc
+        pattern = r"^[A-Z]\d{1,3}[a-z]{0,1}$"
+        if self.voirie_nom and re.match(pattern, self.voirie_nom):
+            self.ident2 = self.voirie_nom
             self.nwoidn = OidnManager.nw_oidn
             OidnManager.nw_oidn += 1
 
-    def set_ident8(self, alfabet: str = None) -> None:
+    def set_ident8(self, alfabet: str = "abcdefghijklmnopqrstuvwxyz") -> None:
         import re
         """
         Zet self.ident8 volgens het wegenregister-formaat.
@@ -338,8 +342,8 @@ class WegWallonie(BaseWeg):
         - Niet-hoofdbaan: [A-Z][6 cijfers]
                      -> A001501
         """
-        if not self.nature_desc:
-            return  # Geen invoer => geen ident8
+        if not self.voirie_nom:
+            return None  # Geen invoer => geen ident8
 
         pattern_hoofdbaan = r"^[A-Z]\d{1,3}[a-z]?$"
         pattern_niethoofd = r"^[A-Z]\d{6}$"
@@ -347,43 +351,46 @@ class WegWallonie(BaseWeg):
         self.gwoidn = OidnManager.gw_oidn
         OidnManager.gw_oidn += 1
 
-        wegtype = self.nature_desc[0]
+        wegtype = self.voirie_nom[0]
 
-        if re.match(pattern_hoofdbaan, self.nature_desc):
+        if re.match(pattern_hoofdbaan, self.voirie_nom):
             # Voorbeeld: A1, A1a, A220
-            nummer_match = re.search(r"\d{1,3}", self.nature_desc)
+            nummer_match = re.search(r"\d{1,3}", self.voirie_nom)
             wegnummer = f"{int(nummer_match.group()):03d}" if nummer_match else "000"
 
             # Optionele letter → 900 + positie in alfabet
-            letter = self.nature_desc[-1].lower()
-            if letter in alfabet:
+            letter = self.voirie_nom[-1].lower()
+            if letter is not None and letter in alfabet:
                 pos = alfabet.index(letter) + 1  # a=1, b=2, ...
                 wegindex = f"9{pos:02d}"  # 901, 902, ...
             else:
                 wegindex = "000"
 
-        elif re.match(pattern_niethoofd, self.nature_desc):
+        elif re.match(pattern_niethoofd, self.voirie_nom):
             # Voorbeeld: A001501
-            wegnummer = self.nature_desc[1:4]
-            wegindex = self.nature_desc[4:]  # laatste 3 cijfers
+            wegnummer = self.voirie_nom[1:4]
+            wegindex = self.voirie_nom[4:]  # laatste 3 cijfers
         else:
             # Onbekend formaat
             wegnummer = None
             wegindex = None
 
-        if self.sens_bk in ("C",""):
-            self.opdalend = 1
+        if self.sens_bk in ("C", "", "CD"):
+            opdalend = 1
+            self.richting_ident8 = 1
+            self.lblricht_ident8 = "gelijklopend met de digitalisatiezin"
         elif self.sens_bk == "D":
-            self.opdalend = 2
+            opdalend = 2
+            self.richting_ident8 = 2
+            self.lblricht_ident8 = "tegengesteld aan de digitalisatiezin"
+        else:
+            opdalend = 0
 
         # Samenstellen ident8
-        self.ident8 = f"{wegtype}{wegnummer}{wegindex}"
+        self.ident8 = f"{wegtype}{wegnummer}{wegindex}{opdalend}"
 
         # Extra attributen (indien gewenst later ingevuld)
-        self.richting_ident8 = getattr(self, "richting_ident8", None)
-        self.lblricht_ident8 = getattr(self, "lblricht_ident8", None)
-        self.volgnummer = getattr(self, "volgnummer", None)
-
+        self.volgnummer = NOT_KNOWN
 
 
 # -------------------------
